@@ -47,6 +47,7 @@ NFrusPMainWindow::NFrusPMainWindow()
     playModeSelection->addItem("Stop after each");
     playModeSelection->addItem("Continue sequentially");
     playModeSelection->addItem("Continue randomly");
+    playModeSelection->addItem("Repeat Song");
     playModeSelection->setCurrentIndex(continueRandomly);
     playMode = continueRandomly;
     connect(playModeSelection, SIGNAL(activated(int)), this, SLOT(playModeSlot(int)));
@@ -239,6 +240,12 @@ void NFrusPMainWindow::playerProcessFinished(int exitCode, QProcess::ExitStatus)
         else if(playMode == continueRandomly)
         {
           playQueue.push_back(rand() % songCount);
+          currentPlayQueueIndex = int(playQueue.size()) - 1;
+          filesTable->selectRow(playQueue[currentPlayQueueIndex]);
+          play();
+        }
+        else if(playMode == repeatSong)
+        {
           currentPlayQueueIndex = int(playQueue.size()) - 1;
           filesTable->selectRow(playQueue[currentPlayQueueIndex]);
           play();

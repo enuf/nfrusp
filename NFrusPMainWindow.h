@@ -18,7 +18,6 @@
 // TODO: 
 //  * queue display/append/saving/editing
 //  * backend selection (mplayer, xine, ...) via command line and player error handling
-//  * implement repeatSong enum
 
 
 

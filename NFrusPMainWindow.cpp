@@ -239,7 +239,20 @@ void NFrusPMainWindow::playerProcessFinished(int exitCode, QProcess::ExitStatus)
         }
         else if(playMode == continueRandomly)
         {
-          playQueue.push_back(rand() % songCount);
+	  // now we are searching for a random index (limited attempts), which is has not been part of playQueue
+	  // or, if playQueue size is a multiple of the number of all songs, which has not been part more than
+	  // this multiplicity
+          int randomSong;	  
+          for(std::size_t i = 0; i < 1000; ++i)
+          {
+            randomSong = rand() % songCount;
+            
+	    if( std::count(playQueue.begin(), playQueue.end(), randomSong) <=
+	        (int(playQueue.size()) / songCount)
+	      ) break;
+          }
+          
+          playQueue.push_back(randomSong);
           currentPlayQueueIndex = int(playQueue.size()) - 1;
           filesTable->selectRow(playQueue[currentPlayQueueIndex]);
           play();

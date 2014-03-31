@@ -30,11 +30,24 @@ class NFrusPMainWindow : public QWidget
     Q_OBJECT
 
     enum PlayModeType
-    {
+    { // take care to number these beginning from zero with no "holes" as
+      // we get only the index from the combo box they relate to
       stopAfterEach = 0,
       continueSequentially = 1,
       continueRandomly = 2,
       repeatSong = 3      
+    };
+    
+    enum StateType
+    {
+      statePlaying,
+      stateStopping,
+      stateStopped
+    };
+    
+    enum CustomEventType
+    {
+      playNextSong = QEvent::User + 0
     };
     
 public:
@@ -44,10 +57,12 @@ public:
 protected:
   
     void closeEvent(QCloseEvent * e);
+    void customEvent(QEvent * e); // to avoid race conditions
 
 private slots:
     void addDirButtonSlot();
     void clearButtonSlot();
+    void nextButtonSlot();
     void pausePlayButtonSlot();
     void playModeSlot(int index);
     void searchSlot();
@@ -65,12 +80,14 @@ private:
     void writeList();
     void play();
     void stop();
+    void generateNextSongIndex();
 
     // gui elements
     QPushButton  * addDirButton;
     QPushButton  * clearButton;
 
     QPushButton  * pausePlayButton;
+    QPushButton  * nextButton;
     QComboBox    * playModeSelection;
 
     QLineEdit    * searchTextEdit;
@@ -84,7 +101,9 @@ private:
     int currentPlayQueueIndex; // index into the playQueue of the currently playing file (-1 in invalid case)
     QProcess player;
     PlayModeType playMode;
-    bool inStopFunction;
+    StateType state;
+
+    //QTableWidget * queueTable;  // TODO: queue user interface
 };
 
 

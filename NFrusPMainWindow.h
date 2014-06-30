@@ -2,6 +2,7 @@
 #define NFRUSPMAINWINDOW_H
 
 #include <QWidget>
+#include <QMainWindow>
 #include <QDir>
 #include <QPushButton>
 #include <QComboBox>
@@ -10,6 +11,8 @@
 #include <QProcess>
 #include <QLineEdit>
 #include <QCloseEvent>
+#include <QAction>
+#include <QMenu>
 
 #include <deque>
 #include <vector>
@@ -18,6 +21,7 @@
 // TODO: 
 //  * queue display/append/saving/editing
 //  * backend selection (mplayer, xine, ...) via command line and player error handling
+//  * somehow highlight current song and offer a "jump to current song" button (alternative: use status bar and/or queue view)
 
 
 
@@ -25,7 +29,7 @@
 
 
 
-class NFrusPMainWindow : public QWidget
+class NFrusPMainWindow : public QMainWindow
 {
     Q_OBJECT
 
@@ -54,6 +58,9 @@ public:
     NFrusPMainWindow();
     ~NFrusPMainWindow(){}
     
+public slots:
+    void customMenuRequested(QPoint pos);
+
 protected:
   
     void closeEvent(QCloseEvent * e);
@@ -68,6 +75,7 @@ private slots:
     void searchSlot();
 
     void selectFile(int row, int column);
+    void contextMenuSlot(bool checked);
 
     void playerProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
 
@@ -83,6 +91,8 @@ private:
     void generateNextSongIndex();
 
     // gui elements
+    QWidget * dummyWidget;
+    
     QPushButton  * addDirButton;
     QPushButton  * clearButton;
 
@@ -93,6 +103,9 @@ private:
     QLineEdit    * searchTextEdit;
     int lastHitPosition; // -1 is invalid (no hit or initial value)
     QString currentSearchString;
+    
+    QMenu * contextMenu;
+    QAction * contextMenuQueueAction;
 
     // object state
     QTableWidget * filesTable;  // table of music files (with hidden fields)

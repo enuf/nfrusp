@@ -9,6 +9,8 @@
 #include <QShortcut>
 #include <QMap>
 #include <QCoreApplication>
+#include <QMenuBar>
+#include <QStatusBar>
 
 #include <iostream>
 #include <fstream>
@@ -28,13 +30,17 @@
 
 
 NFrusPMainWindow::NFrusPMainWindow()
-    :QWidget(0)
-    ,lastHitPosition(-1)
+    :lastHitPosition(-1)
     ,filesTableChanged(false)
     ,currentPlayQueueIndex(-1)
     ,player(this)
     ,state(stateStopped)
 {
+    menuBar()->setVisible(false);
+    statusBar()->setVisible(true);
+    dummyWidget = new QWidget();
+    setCentralWidget(dummyWidget);
+    
     QGridLayout *mainLayout = new QGridLayout;
     mainLayout->setSizeConstraint(QLayout::SetNoConstraint);
 
@@ -95,12 +101,18 @@ NFrusPMainWindow::NFrusPMainWindow()
     filesTable->verticalHeader()->hide();
     filesTable->setShowGrid(false);
     connect(filesTable, SIGNAL(cellActivated(int,int)), this, SLOT(selectFile(int,int)));
+    contextMenu = new QMenu(this);
+    contextMenuQueueAction = new QAction("queue", this);
+    contextMenu->addAction(contextMenuQueueAction);
+    connect(contextMenuQueueAction, SIGNAL(triggered(bool)), this, SLOT(contextMenuSlot(bool)));
+    filesTable->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(filesTable, SIGNAL(customContextMenuRequested(QPoint)), SLOT(customMenuRequested(QPoint)));
     mainLayout->addWidget(filesTable, 2, 0, 1, firstLineGuiElementCount);
 
     
     
     // finally **************************************************************
-    setLayout(mainLayout);
+    dummyWidget->setLayout(mainLayout);
     setWindowTitle("NFrusP");
     resize(800, 600);
     
@@ -120,12 +132,30 @@ NFrusPMainWindow::NFrusPMainWindow()
 
 
 
+void NFrusPMainWindow::customMenuRequested(QPoint pos)
+{
+    QModelIndex index = filesTable->indexAt(pos);
+    contextMenuQueueAction->setData(QVariant(index.row()));
+    contextMenu->popup(filesTable->viewport()->mapToGlobal(pos));
+}
+
+
+
+
+void NFrusPMainWindow::contextMenuSlot(bool)
+{
+  int songNr = contextMenuQueueAction->data().toInt();
+  std::cout << "queueing row: " << songNr << std::endl;
+  playQueue.push_back( songNr );
+}
+
+
+
+
 
 void NFrusPMainWindow::closeEvent(QCloseEvent * event)
 {
-  state = stateStopping;
   stop(); 
-  state = stateStopped;
   if(filesTableChanged) writeList();
   event->accept();
 }
@@ -179,14 +209,11 @@ void NFrusPMainWindow::pausePlayButtonSlot()
       (pausePlayButton->text() == "&Pause")
     )
   {
-    state = stateStopping;
     stop();    
-    state = stateStopped;
     pausePlayButton->setText("&Play");
   }
   else if (pausePlayButton->text() == "&Play")
   {
-    state = statePlaying;
     play();
     pausePlayButton->setText("&Pause");
   }
@@ -203,12 +230,14 @@ void NFrusPMainWindow::pausePlayButtonSlot()
 
 void NFrusPMainWindow::nextButtonSlot()
 {
-  state = stateStopping;
-  stop();    
-  state = stateStopped;
+  if(playMode == stopAfterEach)
+  {
+    statusBar()->showMessage("Cannot do \"Next\" in mode \"Stop after each\"!", 3000);
+    return;
+  }
+  stop();
   generateNextSongIndex();
-  state = statePlaying;
-  play();
+  QCoreApplication::postEvent(this, new QEvent(QEvent::Type(int(playNextSong))));
 }
 
 
@@ -223,6 +252,7 @@ void NFrusPMainWindow::play()
   if( (not playQueue.empty()) and (currentPlayQueueIndex < int(playQueue.size())) )
   {
     QString fileToPlay = filesTable->item(playQueue[currentPlayQueueIndex], 2)->text();
+    filesTable->selectRow(playQueue[currentPlayQueueIndex]);
     #ifdef DEBUG
     std::cerr << "[NFrusp] start playing: " << fileToPlay.toStdString() << " using /usr/bin/mplayer." << std::endl;
     #endif
@@ -230,6 +260,7 @@ void NFrusPMainWindow::play()
     QStringList arguments;
     arguments << "-quiet" << fileToPlay;
     player.start(program, arguments);
+    state = statePlaying;
   }
 }
 
@@ -243,12 +274,14 @@ void NFrusPMainWindow::play()
 
 void NFrusPMainWindow::stop()
 {
+  state = stateStopping;
   if(player.state() not_eq QProcess::NotRunning)
   {
     // write quit to mplayer pipe and wait for it to finish
     player.write("q");
     if(not player.waitForFinished(1000)) player.kill(); // wait for a second at max
   }
+  state = stateStopped;
 }
 
 
@@ -265,7 +298,6 @@ void NFrusPMainWindow::customEvent(QEvent * e)
 {
   if( int(e->type()) == int(playNextSong) )
   {
-    state = statePlaying;
     play();    
   }  
 }
@@ -292,7 +324,7 @@ void NFrusPMainWindow::playerProcessFinished(int exitCode, QProcess::ExitStatus)
     {
       if(playMode == stopAfterEach)
       {
-	state = stateStopped;
+        state = stateStopped;
       }
       else
       {
@@ -324,13 +356,20 @@ void NFrusPMainWindow::generateNextSongIndex()
   int songCount = filesTable->rowCount();
   if(songCount > 0)
   {
+    // if we are anywhere in the queue and not at the end, we just go on
+    if(not playQueue.empty() and (currentPlayQueueIndex not_eq (int(playQueue.size()) - 1)) and (playMode not_eq stopAfterEach))
+    {
+      ++currentPlayQueueIndex;
+      return;
+    }
+        
+    // otherwise we may need to create a new entry to the queue automatically
+    
     if(playMode == continueSequentially)
     {
       if(not playQueue.empty()) playQueue.push_back( (playQueue[currentPlayQueueIndex] + 1) % songCount );
       else                      playQueue.push_back( 0 );
       currentPlayQueueIndex = int(playQueue.size()) - 1;
-      filesTable->selectRow(playQueue[currentPlayQueueIndex]);
-      QCoreApplication::postEvent(this, new QEvent(QEvent::Type(int(playNextSong))));
     }
     else if(playMode == continueRandomly)
     {
@@ -349,14 +388,10 @@ void NFrusPMainWindow::generateNextSongIndex()
       
       playQueue.push_back(randomSong);
       currentPlayQueueIndex = int(playQueue.size()) - 1;
-      filesTable->selectRow(playQueue[currentPlayQueueIndex]);
-      QCoreApplication::postEvent(this, new QEvent(QEvent::Type(int(playNextSong))));
     }
     else if(playMode == repeatSong)
     {
       currentPlayQueueIndex = int(playQueue.size()) - 1;
-      filesTable->selectRow(playQueue[currentPlayQueueIndex]);
-      QCoreApplication::postEvent(this, new QEvent(QEvent::Type(int(playNextSong))));
     }
     // else "stop after each" does not generate an index of course
   }  
@@ -484,9 +519,7 @@ void NFrusPMainWindow::addDirButtonSlot()
 
 void NFrusPMainWindow::clearButtonSlot()
 {
-  state = stateStopping;
   stop();
-  state = stateStopped;
   filesTable->setRowCount(0);
   playQueue.clear();
   currentPlayQueueIndex = -1;
@@ -506,14 +539,10 @@ void NFrusPMainWindow::clearButtonSlot()
 
 void NFrusPMainWindow::selectFile(int row, int /*column*/)
 {
-  state = stateStopping;
   stop();
-  state = stateStopped;
   playQueue.push_back(row);
   currentPlayQueueIndex = int(playQueue.size()) - 1;
-  state = statePlaying;
-  play();
-  pausePlayButton->setText("&Pause");  
+  QCoreApplication::postEvent(this, new QEvent(QEvent::Type(int(playNextSong))));
 }
 
 

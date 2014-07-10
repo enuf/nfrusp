@@ -51,7 +51,7 @@ NFrusPMainWindow::NFrusPMainWindow()
     clearButton = new QPushButton("&Clear");
     connect(clearButton, SIGNAL(clicked()), this, SLOT(clearButtonSlot()));
 
-    pausePlayButton = new QPushButton("&Pause");
+    pausePlayButton = new QPushButton("&Play");
     connect(pausePlayButton, SIGNAL(clicked()), this, SLOT(pausePlayButtonSlot()));
     
     nextButton = new QPushButton("&Next");
@@ -205,17 +205,24 @@ void NFrusPMainWindow::searchSlot()
 
 void NFrusPMainWindow::pausePlayButtonSlot()
 {
-  if( (player.state() not_eq QProcess::NotRunning) and 
-      (pausePlayButton->text() == "&Pause")
-    )
+  if      ( pausePlayButton->text() == "&Pause" )
   {
     stop();    
-    pausePlayButton->setText("&Play");
   }
-  else if (pausePlayButton->text() == "&Play")
+  else if ( pausePlayButton->text() == "&Play"  )
   {
-    play();
-    pausePlayButton->setText("&Pause");
+    if(filesTable->rowCount() == 0)
+    {
+      statusBar()->showMessage("No songs to play!", 3000);      
+    }
+    else
+    {
+      if(playQueue.empty() or (currentPlayQueueIndex >= int(playQueue.size())))
+      {
+        generateNextSongIndex();
+      }
+      QCoreApplication::postEvent(this, new QEvent(QEvent::Type(int(playNextSong))));	
+    }
   }
 }
 
@@ -251,15 +258,23 @@ void NFrusPMainWindow::play()
 {
   if( (not playQueue.empty()) and (currentPlayQueueIndex < int(playQueue.size())) )
   {
+    // get path to file and mark row in table
     QString fileToPlay = filesTable->item(playQueue[currentPlayQueueIndex], 2)->text();
     filesTable->selectRow(playQueue[currentPlayQueueIndex]);
+
     #ifdef DEBUG
     std::cerr << "[NFrusp] start playing: " << fileToPlay.toStdString() << " using /usr/bin/mplayer." << std::endl;
     #endif
+
+    // construct command line and start player process
     QString program = "/usr/bin/mplayer";
     QStringList arguments;
     arguments << "-quiet" << fileToPlay;
     player.start(program, arguments);
+
+    // when we are playing something, this button needs to be set in any case
+    pausePlayButton->setText("&Pause");
+
     state = statePlaying;
   }
 }
@@ -275,12 +290,17 @@ void NFrusPMainWindow::play()
 void NFrusPMainWindow::stop()
 {
   state = stateStopping;
+  
   if(player.state() not_eq QProcess::NotRunning)
   {
     // write quit to mplayer pipe and wait for it to finish
     player.write("q");
     if(not player.waitForFinished(1000)) player.kill(); // wait for a second at max
   }
+  
+  // in the stop state, this button needs to be set to "Play" for any case
+  pausePlayButton->setText("&Play");
+  
   state = stateStopped;
 }
 
@@ -356,8 +376,12 @@ void NFrusPMainWindow::generateNextSongIndex()
   int songCount = filesTable->rowCount();
   if(songCount > 0)
   {
-    // if we are anywhere in the queue and not at the end, we just go on
-    if(not playQueue.empty() and (currentPlayQueueIndex not_eq (int(playQueue.size()) - 1)) and (playMode not_eq stopAfterEach))
+    // if we are anywhere in the queue and not at the end, we just go on, if playMode fits too
+    if( (not playQueue.empty()) and 
+        (currentPlayQueueIndex < (int(playQueue.size()))) and 
+        (playMode not_eq stopAfterEach) and 
+        (playMode not_eq repeatSong)
+      )
     {
       ++currentPlayQueueIndex;
       return;
@@ -391,7 +415,9 @@ void NFrusPMainWindow::generateNextSongIndex()
     }
     else if(playMode == repeatSong)
     {
-      currentPlayQueueIndex = int(playQueue.size()) - 1;
+      if(playQueue.empty()) playQueue.push_back(0); // just choose the first song, if queue empty
+      
+      currentPlayQueueIndex = int(playQueue.size()) - 1; // this demands for playQueue to be non-empty
     }
     // else "stop after each" does not generate an index of course
   }  

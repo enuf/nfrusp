@@ -378,7 +378,7 @@ void NFrusPMainWindow::generateNextSongIndex()
   {
     // if we are anywhere in the queue and not at the end, we just go on, if playMode fits too
     if( (not playQueue.empty()) and 
-        (currentPlayQueueIndex < (int(playQueue.size()))) and 
+        (currentPlayQueueIndex < (int(playQueue.size()) - 1)) and 
         (playMode not_eq stopAfterEach) and 
         (playMode not_eq repeatSong)
       )

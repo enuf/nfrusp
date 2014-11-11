@@ -502,7 +502,7 @@ void NFrusPMainWindow::addDirButtonSlot()
     for(;it.hasNext(); it.next())
     {
       QFileInfo currentFileInfo = it.fileInfo();
-      if (not currentFileInfo.isDir()) 
+      if(currentFileInfo.isFile()) 
       {
         if( currentFileInfo.fileName().endsWith(".mp3", Qt::CaseInsensitive) or 
             currentFileInfo.fileName().endsWith(".ogg", Qt::CaseInsensitive) or 

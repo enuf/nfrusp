@@ -493,11 +493,14 @@ void NFrusPMainWindow::appendTableRow(QFileInfo const & info)
 void NFrusPMainWindow::addDirButtonSlot()
 {
   // this functions appends files, so we do not clear the table
+  QString startPath = (lastAddedDir.isEmpty())? QDir::currentPath() : lastAddedDir;
   
-  QString currentDirName = QFileDialog::getExistingDirectory(this, "Simple Player", QDir::currentPath());
+  QString currentDirName = QFileDialog::getExistingDirectory(this, "Simple Player", startPath);
 
   if(not currentDirName.isEmpty()) 
   {
+    lastAddedDir = currentDirName;
+    
     QDirIterator it(currentDirName, QDirIterator::Subdirectories);
     for(;it.hasNext(); it.next())
     {

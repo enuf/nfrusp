@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QPushButton>
 #include <QComboBox>
+#include <QString>
 #include <QStringList>
 #include <QTableWidget>
 #include <QProcess>
@@ -94,6 +95,7 @@ private:
     QWidget * dummyWidget;
     
     QPushButton  * addDirButton;
+    QString        lastAddedDir; // to start the file picker dialog from
     QPushButton  * clearButton;
 
     QPushButton  * pausePlayButton;
